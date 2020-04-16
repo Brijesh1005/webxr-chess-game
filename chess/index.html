@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Building an augmented reality application with the WebXR Device API</title>
+    <link rel="stylesheet" type="text/css" href="../shared/app.css" />
+    <link rel="stylesheet" type="text/css" href="../third_party/mdl/material.min.css" />
+  </head>
+  <body class="gamesBody">
+    <div id="enter-ar-info" class="demo-card mdl-card mdl-shadow--4dp">
+      <div class="mdl-card__title">
+        <div class="head effect">
+          <strong>AR Games</strong>
+        </div>
+      </div>
+      <div class="mdl-card__supporting-text">
+        <div class="games">
+          <div class="chess" id="enter-ar">
+            <div class="gameImage">
+              <img src="https://bambootelegraph.files.wordpress.com/2014/03/0225.jpg" alt="Chess">
+            </div>
+            <div class="gameText effectGameText"> Chess</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="unsupported-info" class="demo-card mdl-card mdl-shadow--4dp">
+      <div class="mdl-card__title">
+        <h2 class="mdl-card__title-text">Unsupported Browser</h2>
+      </div>
+      <div class="mdl-card__supporting-text">
+          Your browser does not support AR features with WebXR. Learn more about these features from the <a href="https://codelabs.developers.google.com/codelabs/ar-with-webxr">Building an augmented reality application with the WebXR Device API</a> Code Lab.
+      </div>
+    </div>
+    <div id="stabilization"></div>
+    <div id="info">
+        <a id="credits" onclick="toggleCredits(event)">Credits</a>
+        <div id="creditDetails"></div>
+      <br />
+    </div>
+
+    <script src="../third_party/three.js/three.js"></script>
+    <script src="../third_party/tween/tween.umd.js"></script>
+    <script src="../third_party/three.js/OBJLoader.js"></script>
+    <script src="../third_party/three.js/MTLLoader.js"></script>
+    <script src="../shared/utils.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
