@@ -652,6 +652,7 @@ class App {
       board.children[0].add(this.pieces.black.queen[0]);
 
       // this.scene.add(new THREE.AxesHelper( 10 )); // This will show you the 3 axis in screen, used to position 3D models.
+      DemoUtils.lookAtOnY(board, this.camera);
       this.scene.add(board);
       this.reticle.visible = false;
       window.removeEventListener('click', this.onClick);
