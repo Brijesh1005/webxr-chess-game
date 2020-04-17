@@ -44,11 +44,11 @@ class Reticle extends THREE.Object3D {
     this.loader.load('../assets/Anchor.png', texture => {
       this.icon.material.opacity = 1;
       this.icon.material.map = texture;
+      this.add(this.icon);
     });
 
     this.add(this.ring);
-    this.add(this.icon);
-
+    
     this.session = xrSession;
     this.visible = false;
     this.camera = camera;

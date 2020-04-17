@@ -250,9 +250,8 @@ class App {
     Object.keys(MODEL).forEach(key => {
       const piece = MODEL[key];
       const template = '<div class="modelOwner">' +
-        '<a href="' + piece.model.polyUrl + '">' + piece.model.name + '</a> by' +
-        '<a href="' + piece.owner.profileUrl + '">' + piece.owner.name + '</a>' +
-        '<a href="https://creativecommons.org/licenses/by/2.0/">CC-BY</a>' +
+        '<a href="' + piece.model.polyUrl + '">' + piece.model.name + '</a> by ' +
+        '<a href="' + piece.owner.profileUrl + '">' + piece.owner.name + ' </a>' +
       '</div>';
       creditDetailsElement.innerHTML += template;
     });
