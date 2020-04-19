@@ -23,7 +23,7 @@ const MODEL = {
     MTL: '../assets/chess/bishop/materials.mtl',
     SCALE: 0.00016,
     owner: {
-      name: 'Evo',
+      name: 'Evol',
       profileUrl: 'https://poly.google.com/user/0KYiq8tYHqj'
     },
      model: {
@@ -562,7 +562,6 @@ class App {
           -BOARD_SIZE.depth / 2 + boardSquareSize / 2
         );
         this.pieces.white.rook[i].position.set(rookPosition.x, rookPosition.y, rookPosition.z);
-        this.pieces.white.rook[i].children[0].material.color = new THREE.Color( 0xffffff );;
         board.children[0].add(this.pieces.white.rook[i]);
 
         rookPosition = new THREE.Vector3(
@@ -650,7 +649,7 @@ class App {
       this.pieces.black.queen[0].position.set(queenPosition.x, queenPosition.y, queenPosition.z);
       board.children[0].add(this.pieces.black.queen[0]);
 
-      // this.scene.add(new THREE.AxesHelper( 10 )); // This will show you the 3 axis in screen, used to position 3D models.
+      // this.scene.add(new THREE.AxesHelper( 10 )); // This will show you the 3 axes in screen, used to position 3D models.
       DemoUtils.lookAtOnY(board, this.camera);
       this.scene.add(board);
       this.reticle.visible = false;
