@@ -1,3 +1,16 @@
+/**
+ * Query for WebXR support. If there's no support for the `immersive-ar` mode,
+ * show an error.
+ */
+(async function () {
+  const isArSessionSupported = navigator.xr && navigator.xr.isSessionSupported && await navigator.xr.isSessionSupported("immersive-ar");
+  if (isArSessionSupported) {
+    document.getElementById("enter-ar").addEventListener("click", window.app.activateXR)
+  } else {
+    onNoXRDevice();
+  }
+})();
+
 const BOARD_SIZE = {
   width: 0.75,
   height: 0.1,
@@ -90,86 +103,39 @@ const MODEL = {
  * and handle rendering on every frame.
  */
 class App {
-  constructor() {
-    this.onXRFrame = this.onXRFrame.bind(this);
-    this.onEnterAR = this.onEnterAR.bind(this);
-    this.projector = new THREE.Projector();
-
-    this.init();
-    this.onClick = this.onClick.bind(this);
-    this.onDocumentMouseDown = this.onDocumentMouseDown.bind(this);
-  }
-
   /**
-   * Fetches the XRDevice, if available.
+   * Run when the Start AR button is pressed.
    */
-  async init() {
-    // The entry point of the WebXR Device API is on `navigator.xr`.
-    // We also want to ensure that `XRSession` has `requestHitTest`,
-    // indicating that the #webxr-hit-test flag is enabled.
-    if (navigator.xr && XRSession.prototype.requestHitTest) {
-      try {
-        this.device = await navigator.xr.requestDevice();
-      } catch (e) {
-        // If there are no valid XRDevice's on the system,
-        // `requestDevice()` rejects the promise. Catch our
-        // awaited promise and display message indicating there
-        // are no valid devices.
-        this.onNoXRDevice();
-        return;
-      }
-    } else {
-      // If `navigator.xr` or `XRSession.prototype.requestHitTest`
-      // does not exist, we must display a message indicating there
-      // are no valid devices.
-      this.onNoXRDevice();
-      return;
-    }
-
-    // We found an XRDevice! Bind a click listener on our "Enter AR" button
-    // since the spec requires calling `device.requestSession()` within a
-    // user gesture.
-    document.querySelector('#enter-ar').addEventListener('click', this.onEnterAR);
-  }
-
-  /**
-   * Handle a click event on the '#enter-ar' button and attempt to
-   * start an XRSession.
-   */
-  async onEnterAR() {
-    // Now that we have an XRDevice, and are responding to a user
-    // gesture, we must create an XRPresentationContext on a
-    // canvas element.
-    const outputCanvas = document.createElement('canvas');
-    const ctx = outputCanvas.getContext('xrpresent');
-
+  activateXR = async () => {
     try {
-      // Request a session for the XRDevice with the XRPresentationContext
-      // we just created.
-      // Note that `device.requestSession()` must be called in response to
-      // a user gesture, hence this function being a click handler.
-      const session = await this.device.requestSession({
-        outputContext: ctx,
-        environmentIntegration: true,
+      // Initialize a WebXR session using "immersive-ar".
+      this.xrSession = await navigator.xr.requestSession("immersive-ar", {
+        requiredFeatures: ['hit-test', 'dom-overlay'],
+        domOverlay: { root: document.body }
       });
 
-      // If `requestSession` is successful, add the canvas to the
-      // DOM since we know it will now be used.
-      document.body.appendChild(outputCanvas);
-      this.onSessionStarted(session)
+      // Create the canvas that will contain our camera's background and our virtual scene.
+      this.createXRCanvas();
+
+      // With everything set up, start the app.
+      await this.onSessionStarted();
     } catch (e) {
-      // If `requestSession` fails, the canvas is not added, and we
-      // call our function for unsupported browsers.
-      this.onNoXRDevice();
+      console.log(e);
+      onNoXRDevice();
     }
   }
 
   /**
-   * Toggle on a class on the page to disable the "Enter AR"
-   * button and display the unsupported browser message.
+   * Add a canvas element and initialize a WebGL context that is compatible with WebXR.
    */
-  onNoXRDevice() {
-    document.body.classList.add('unsupported');
+  createXRCanvas() {
+    this.canvas = document.createElement("canvas");
+    document.body.appendChild(this.canvas);
+    this.gl = this.canvas.getContext("webgl", { xrCompatible: true });
+
+    this.xrSession.updateRenderState({
+      baseLayer: new XRWebGLLayer(this.xrSession, this.gl)
+    });
   }
 
   /**
@@ -177,30 +143,25 @@ class App {
    * renderer, scene, and camera and attach our XRWebGLLayer to the
    * XRSession and kick off the render loop.
    */
-  async onSessionStarted(session) {
-    this.session = session;
+  onSessionStarted = async () => {
+    // this.session = session;
 
     // Add the `ar` class to our body, which will hide our 2D components
     document.body.classList.add('ar');
 
-    // To help with working with 3D on the web, we'll use three.js. Set up
-    // the WebGLRenderer, which handles rendering to our session's base layer.
-    this.renderer = new THREE.WebGLRenderer({
-      alpha: true,
-      preserveDrawingBuffer: true,
-    });
-    this.renderer.autoClear = false;
+    // To help with working with 3D on the web, we'll use three.js.
+    this.setupThreeJs();
 
-    this.gl = this.renderer.getContext();
+    // Setup an XRReferenceSpace using the "local" coordinate system.
+    this.localReferenceSpace = await this.xrSession.requestReferenceSpace('local');
 
-    // Ensure that the context we want to write to is compatible
-    // with our XRDevice
-    await this.gl.setCompatibleXRDevice(this.session.device);
+    // Create another XRReferenceSpace that has the viewer as the origin.
+    this.viewerSpace = await this.xrSession.requestReferenceSpace('viewer');
+    // Perform hit testing using the viewer as origin.
+    this.hitTestSource = await this.xrSession.requestHitTestSource({ space: this.viewerSpace });
 
-    // Set our session's baseLayer to an XRWebGLLayer
-    // using our new renderer's context
-    this.session.baseLayer = new XRWebGLLayer(this.session, this.gl);
-    this.scene = DemoUtils.createLitScene();
+    // Start a rendering loop using this.onXRFrame.
+    this.xrSession.requestAnimationFrame(this.onXRFrame);
 
     // Initialise pieces which holds all the information about every piece model in chess board.
     this.pieces = {
@@ -229,19 +190,37 @@ class App {
     this.loadModels();
     this.updateCreditsInfo();
 
+    // window.addEventListener('click', this.onClick);
+    this.xrSession.addEventListener("select", this.onClick);
+  }
+
+  /**
+  * Initialize three.js specific rendering code, including a WebGLRenderer,
+  * a demo scene, and a camera for viewing the 3D content.
+  */
+  setupThreeJs() {
+    // To help with working with 3D on the web, we'll use three.js.
+    // Set up the WebGLRenderer, which handles rendering to our session's base layer.
+    this.renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      preserveDrawingBuffer: true,
+      canvas: this.canvas,
+      context: this.gl
+    });
+    this.renderer.autoClear = false;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    // Initialize our demo scene.
+    this.scene = DemoUtils.createLitScene();
+    this.reticle = new Reticle();
+    this.scene.add(this.reticle);
+
     // We'll update the camera matrices directly from API, so
     // disable matrix auto updates so three.js doesn't attempt
     // to handle the matrices independently.
     this.camera = new THREE.PerspectiveCamera();
     this.camera.matrixAutoUpdate = false;
-
-    this.reticle = new Reticle(this.session, this.camera);
-    this.scene.add(this.reticle);
-
-    window.addEventListener('click', this.onClick);
-
-    this.frameOfRef = await this.session.requestFrameOfReference('eye-level');
-    this.session.requestAnimationFrame(this.onXRFrame);
   }
 
   updateCreditsInfo() {
@@ -359,7 +338,7 @@ class App {
   /*
    * This function helps us select either the chess piece or the square where selected piece needs to be moved
    */
-  onDocumentMouseDown(event) {
+  onDocumentMouseDown = (event) => {
     event.preventDefault();
 
     const tapPosition = new THREE.Vector2(
@@ -507,7 +486,7 @@ class App {
    * This function is called when you click on reticle. The Chess board is created 
    * and all the chess pieces are added into the board in their respective positions.
    */
-  async onClick(e) {
+  onClick = async (e) => {
     if (!this.areModelsReady) return;
 
     this.gameStarted = true;
@@ -517,18 +496,19 @@ class App {
     this.raycaster = this.raycaster || new THREE.Raycaster();
     this.raycaster.setFromCamera({ x, y }, this.camera);
 
-    const ray = this.raycaster.ray;
-    const origin = new Float32Array(ray.origin.toArray());
-    const direction = new Float32Array(ray.direction.toArray());
-    const hits = await this.session.requestHitTest(origin, direction, this.frameOfRef);
+    // const ray = this.raycaster.ray;
+    // const origin = new Float32Array(ray.origin.toArray());
+    // const direction = new Float32Array(ray.direction.toArray());
+    // const hits = await this.xrSession.requestHitTest(origin, direction, this.frameOfRef);
+    // const hits = frame.getHitTestResults(this.hitTestSource);
 
-    if (hits.length) {
-      const hit = hits[0];
-      const hitMatrix = new THREE.Matrix4().fromArray(hit.hitMatrix);
+    if (this.reticle.visible) {
+      // const hit = hits[0];
+      // const hitMatrix = new THREE.Matrix4().fromArray(hit.hitMatrix);
 
       // Set board
       const board = this.createChessBoard()
-      board.position.setFromMatrixPosition(hitMatrix);
+      board.position.setFromMatrixPosition(this.reticle.matrix);
       const boardSquareSize = BOARD_SIZE.width / 8;
 
       /* Set pawn */
@@ -716,42 +696,52 @@ class App {
    * Called on the XRSession's requestAnimationFrame.
    * Called with the time and XRPresentationFrame.
    */
-  onXRFrame(time, frame) {
-    let session = frame.session;
-    let pose = frame.getDevicePose(this.frameOfRef);
+  onXRFrame = (time, frame) => {
+    // Queue up the next draw request.
+    this.xrSession.requestAnimationFrame(this.onXRFrame);
 
-    this.gameStarted || this.reticle.update(this.frameOfRef);
-    if (this.reticle.visible && !this.stabilized) {
-      this.stabilized = true;
-      document.body.classList.add('stabilized');
-    }
+    // Bind the graphics framebuffer to the baseLayer's framebuffer.
+    const framebuffer = this.xrSession.renderState.baseLayer.framebuffer
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, framebuffer)
+    this.renderer.setFramebuffer(framebuffer);
 
-    // Queue up the next frame
-    session.requestAnimationFrame(this.onXRFrame);
+    // Retrieve the pose of the device.
+    // XRFrame.getViewerPose can return null while the session attempts to establish tracking.
+    const pose = frame.getViewerPose(this.localReferenceSpace);
 
     TWEEN.update();
 
-    // Bind the framebuffer to our baseLayer's framebuffer
-    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.session.baseLayer.framebuffer);
-
     if (pose) {
-      // Our XRFrame has an array of views. In the VR case, we'll have
-      // two views, one for each eye. In mobile AR, however, we only
-      // have one view.
-      for (let view of frame.views) {
-        const viewport = session.baseLayer.getViewport(view);
-        this.renderer.setSize(viewport.width, viewport.height);
+      // In mobile AR, we only have one view.
+      const view = pose.views[0];
 
-        // Set the view matrix and projection matrix from XRDevicePose
-        // and XRView onto our THREE.Camera.
-        this.camera.projectionMatrix.fromArray(view.projectionMatrix);
-        const viewMatrix = new THREE.Matrix4().fromArray(pose.getViewMatrix(view));
-        this.camera.matrix.getInverse(viewMatrix);
-        this.camera.updateMatrixWorld(true);
+      const viewport = this.xrSession.renderState.baseLayer.getViewport(view);
+      this.renderer.setSize(viewport.width, viewport.height)
 
-        // Render our scene with our THREE.WebGLRenderer
-        this.renderer.render(this.scene, this.camera);
+      // Use the view's transform matrix and projection matrix to configure the THREE.camera.
+      this.camera.matrix.fromArray(view.transform.matrix)
+      this.camera.projectionMatrix.fromArray(view.projectionMatrix);
+      this.camera.updateMatrixWorld(true);
+
+      // Conduct hit test.
+      const hitTestResults = frame.getHitTestResults(this.hitTestSource);
+
+      // If we have results, consider the environment stabilized.
+      if (!this.stabilized && hitTestResults.length > 0) {
+        this.stabilized = true;
+        document.body.classList.add('stabilized');
       }
+      if (!this.gameStarted && hitTestResults.length > 0) {
+        const hitPose = hitTestResults[0].getPose(this.localReferenceSpace);
+
+        // Update the reticle position
+        this.reticle.visible = true;
+        this.reticle.position.set(hitPose.transform.position.x, hitPose.transform.position.y, hitPose.transform.position.z)
+        this.reticle.updateMatrixWorld(true);
+      }
+
+      // Render the scene with THREE.WebGLRenderer.
+      this.renderer.render(this.scene, this.camera)
     }
   }
 };
