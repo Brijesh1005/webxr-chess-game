@@ -5,7 +5,7 @@ AR Chess game using WebXR device API
 
 
 #### Set up instructions
-Set up instructions are mentioned [here](https://codelabs.developers.google.com/codelabs/ar-with-webxr/#1)
+Set up instructions are mentioned [here](https://developers.google.com/ar/develop/webxr/hello-webxr)
 
 #### Current state of the application
 The Chess game was built to get hands on [WebXR Device API](https://www.w3.org/TR/webxr/) and in no way game was expected to work fully. WebXR is still in development phase and developers from Mozilla, Google and Microsoft working together to make WebXR better and bring it in their respective browsers.
